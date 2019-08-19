@@ -28,6 +28,17 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+    packagingOptions {
+        exclude 'META-INF/ktor-http.kotlin_module'
+        exclude 'META-INF/kotlinx-io.kotlin_module'
+        exclude 'META-INF/atomicfu.kotlin_module'
+        exclude 'META-INF/ktor-utils.kotlin_module'
+        exclude 'META-INF/ktor-http-cio.kotlin_module'
+        exclude 'META-INF/ktor-client-core.kotlin_module'
+        exclude 'META-INF/ktor-client-json.kotlin_module'
+        exclude 'META-INF/kotlinx-coroutines-io.kotlin_module'
+        exclude 'META-INF/kotlinx-coroutines-core.kotlin_module'
+    }
 }
 
 dependencies {
@@ -40,4 +51,11 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.2.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation 'org.webrtc:google-webrtc:1.0.+'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.1.1'
+    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'io.ktor:ktor-client-core:1.2.3'
+    implementation 'io.ktor:ktor-client-cio:1.2.3'
+    implementation 'io.ktor:ktor-client-android:1.2.3'
+    implementation 'io.ktor:ktor-client-json:1.2.3'
+    implementation 'io.ktor:ktor-client-gson:1.2.3'
 }
