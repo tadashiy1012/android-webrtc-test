@@ -1,35 +1,17 @@
 package jp.yama.webrtctest001
 
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
-import android.app.Application
-import android.content.Context
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.DisplayMetrics
-import android.util.Log
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.gson.Gson
-import com.google.gson.JsonObject
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.features.json.GsonSerializer
-import io.ktor.client.features.json.JsonFeature
-import io.ktor.client.features.websocket.WebSockets
-import io.ktor.client.features.websocket.ws
-import io.ktor.http.cio.websocket.Frame
-import io.ktor.http.cio.websocket.readText
 import io.ktor.util.KtorExperimentalAPI
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import org.webrtc.*
-import kotlin.coroutines.CoroutineContext
 
 @ExperimentalCoroutinesApi
 @KtorExperimentalAPI
@@ -41,12 +23,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var rtcClient: WebRtcCLient
-    private lateinit var signallingClient: SignallingClient
+    private lateinit var signalingClient: SignalingClient
 
     private val sdpObserver = object : AppSdpObserver() {
         override fun onCreateSuccess(p0: SessionDescription?) {
             super.onCreateSuccess(p0)
-            signallingClient.send(p0)
+            signalingClient.send(p0)
         }
     }
 
@@ -99,10 +81,9 @@ class MainActivity : AppCompatActivity() {
         rtcClient = WebRtcCLient(application, object : AppPeerConnectionObserver() {
             override fun onIceCandidate(p0: IceCandidate?) {
                 super.onIceCandidate(p0)
-                signallingClient.send(p0)
+                signalingClient.send(p0)
                 rtcClient.addIceCandidate(p0)
             }
-
             override fun onAddStream(p0: MediaStream?) {
                 super.onAddStream(p0)
                 p0?.videoTracks?.get(0)?.addSink(remoteRenderer)
@@ -111,19 +92,19 @@ class MainActivity : AppCompatActivity() {
         rtcClient.initSurfaceView(remoteRenderer)
         rtcClient.initSurfaceView(localRenderer)
         rtcClient.startLocalVideoCapture(localRenderer)
-        signallingClient = SignallingClient(createSignallingClientListener())
+        signalingClient = SignalingClient(createSignalingClientListener())
         callBtn.setOnClickListener {
             rtcClient.call(sdpObserver)
         }
     }
 
-    private fun createSignallingClientListener(): SignallingClientListener = object : SignallingClientListener {
+    private fun createSignalingClientListener(): SignalingClientListener = object : SignalingClientListener {
         override fun onConnectionEstablished() {
             callBtn.isClickable = true
         }
         override fun onOfferReceived(description: SessionDescription) {
             rtcClient.onRemoteSessionReceived(description)
-            rtcClient.ansswer(sdpObserver)
+            rtcClient.answer(sdpObserver)
         }
         override fun onAnswerReceived(description: SessionDescription) {
             rtcClient.onRemoteSessionReceived(description)
@@ -138,7 +119,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        signallingClient.destroy()
+        signalingClient.destroy()
         super.onDestroy()
     }
 

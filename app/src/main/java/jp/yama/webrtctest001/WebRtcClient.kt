@@ -24,7 +24,7 @@ class WebRtcCLient(
     )
 
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
-    private val videoCapturer by lazy { getVideoCapurer(ctx) }
+    private val videoCapturer by lazy { getVideoCapturer(ctx) }
     private val localVideoSrc by lazy { peerConnectionFactory.createVideoSource(false) }
     private val peerConnection by lazy { buildPeerConnection(observer) }
 
@@ -33,7 +33,7 @@ class WebRtcCLient(
         observer
     )
 
-    private fun getVideoCapurer(ctx: Application) = Camera2Enumerator(ctx).run {
+    private fun getVideoCapturer(ctx: Application) = Camera2Enumerator(ctx).run {
         deviceNames.find {
             isFrontFacing(it)
         }?.let {
@@ -111,7 +111,7 @@ class WebRtcCLient(
 
     fun call(sdpObserver: SdpObserver) = peerConnection?.call(sdpObserver)
 
-    fun ansswer(sdpObserver: SdpObserver) = peerConnection?.answer(sdpObserver)
+    fun answer(sdpObserver: SdpObserver) = peerConnection?.answer(sdpObserver)
 
     fun onRemoteSessionReceived(sessionDesc: SessionDescription) {
         peerConnection?.setRemoteDescription(object : SdpObserver {

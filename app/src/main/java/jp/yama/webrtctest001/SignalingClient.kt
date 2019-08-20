@@ -20,8 +20,8 @@ import kotlin.coroutines.CoroutineContext
 
 @ExperimentalCoroutinesApi
 @KtorExperimentalAPI
-class SignallingClient(
-    private val listener: SignallingClientListener
+class SignalingClient(
+    private val listener: SignalingClientListener
 ): CoroutineScope {
 
     companion object {
