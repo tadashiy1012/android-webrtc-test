@@ -1,6 +1,7 @@
 package jp.yama.webrtctest001
 
 import android.app.Application
+import android.util.Log
 import org.webrtc.*
 
 class WebRtcCLient(
@@ -74,7 +75,11 @@ class WebRtcCLient(
         videoTrack.addSink(localVideoOutput)
         val stream = peerConnectionFactory.createLocalMediaStream(LOCAL_STREAM_ID)
         stream.addTrack(videoTrack)
-        peerConnection?.addStream(stream)
+        //peerConnection?.addStream(stream)
+        stream.videoTracks.forEach {
+            peerConnection?.addTrack(it)
+        }
+        Log.v("yama", "peerConnection stream added!")
     }
 
     private fun PeerConnection.call(sdpObserver: SdpObserver) {
@@ -83,12 +88,16 @@ class WebRtcCLient(
         }
         createOffer(object : SdpObserver by sdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
+                Log.v("yama", "create offer")
                 setLocalDescription(object : SdpObserver {
                     override fun onSetFailure(p0: String?) {}
-                    override fun onSetSuccess() {}
+                    override fun onSetSuccess() {
+                        Log.v("yama", "set my offer")
+                    }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
                 }, p0)
+                sdpObserver.onCreateSuccess(p0)
             }
         }, constraints)
     }
@@ -99,9 +108,12 @@ class WebRtcCLient(
         }
         createAnswer(object : SdpObserver by sdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
+                Log.v("yama", "create answer")
                 setLocalDescription(object : SdpObserver {
                     override fun onSetFailure(p0: String?) {}
-                    override fun onSetSuccess() {}
+                    override fun onSetSuccess() {
+                        Log.v("yama", "set my answer")
+                    }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
                 }, p0)
@@ -114,9 +126,14 @@ class WebRtcCLient(
     fun answer(sdpObserver: SdpObserver) = peerConnection?.answer(sdpObserver)
 
     fun onRemoteSessionReceived(sessionDesc: SessionDescription) {
+        Log.v("yama", sessionDesc.type.toString())
         peerConnection?.setRemoteDescription(object : SdpObserver {
-            override fun onSetFailure(p0: String?) {}
-            override fun onSetSuccess() {}
+            override fun onSetFailure(p0: String?) {
+                Log.v("yama", "remote desc set fail! " + p0)
+            }
+            override fun onSetSuccess() {
+                Log.v("yama", "remote desc set success!")
+            }
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onCreateFailure(p0: String?) {}
         }, sessionDesc)

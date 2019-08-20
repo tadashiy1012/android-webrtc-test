@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
 
     private val sdpObserver = object : AppSdpObserver() {
         override fun onCreateSuccess(p0: SessionDescription?) {
+            Log.v("yama", "sdpObserver onCreateSuccess")
             super.onCreateSuccess(p0)
             signalingClient.send(p0)
         }
@@ -81,11 +83,13 @@ class MainActivity : AppCompatActivity() {
         rtcClient = WebRtcCLient(application, object : AppPeerConnectionObserver() {
             override fun onIceCandidate(p0: IceCandidate?) {
                 super.onIceCandidate(p0)
+                Log.v("yama", "onIceCandidate")
                 signalingClient.send(p0)
                 rtcClient.addIceCandidate(p0)
             }
             override fun onAddStream(p0: MediaStream?) {
                 super.onAddStream(p0)
+                Log.v("yama", "onAddStream")
                 p0?.videoTracks?.get(0)?.addSink(remoteRenderer)
             }
         })
@@ -103,13 +107,16 @@ class MainActivity : AppCompatActivity() {
             callBtn.isClickable = true
         }
         override fun onOfferReceived(description: SessionDescription) {
+            Log.v("yama", "offer received")
             rtcClient.onRemoteSessionReceived(description)
             rtcClient.answer(sdpObserver)
         }
         override fun onAnswerReceived(description: SessionDescription) {
+            Log.v("yama", "answer received")
             rtcClient.onRemoteSessionReceived(description)
         }
         override fun onIceCandidateReceived(iceCandidate: IceCandidate) {
+            Log.v("yama", " iceCandidate received")
             rtcClient.addIceCandidate(iceCandidate)
         }
     }

@@ -25,7 +25,7 @@ class SignalingClient(
 ): CoroutineScope {
 
     companion object {
-        private const val HOST_ADDRESS = "localhost"
+        private const val HOST_ADDRESS = "192.168.1.33"
         private const val PORT_NUMBER = 8080
     }
 
@@ -50,6 +50,7 @@ class SignalingClient(
 
     private fun connect() = launch {
         client.ws(host = HOST_ADDRESS, port = PORT_NUMBER, path = "/") {
+            Log.v("yama", "connection established")
             listener.onConnectionEstablished()
             val sendData = sendChannel.openSubscription()
             try {
