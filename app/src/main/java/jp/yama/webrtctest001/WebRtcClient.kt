@@ -4,7 +4,7 @@ import android.app.Application
 import android.util.Log
 import org.webrtc.*
 
-class WebRtcCLient(
+class WebRtcClient(
     ctx: Application,
     observer: PeerConnection.Observer
 ) {

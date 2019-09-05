@@ -9,13 +9,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import io.ktor.util.KtorExperimentalAPI
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.*
 import org.webrtc.*
+import java.util.*
 
-@ExperimentalCoroutinesApi
-@KtorExperimentalAPI
 class MainActivity : AppCompatActivity() {
 
     companion object {
@@ -23,14 +21,20 @@ class MainActivity : AppCompatActivity() {
         private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
     }
 
-    private lateinit var rtcClient: WebRtcCLient
+    private val uuid = UUID.randomUUID()
+
+    private lateinit var rtcClient: WebRtcClient
     private lateinit var signalingClient: SignalingClient
+
+    private var isWsOpen = false;
+    private var isCdateNull = false;
 
     private val sdpObserver = object : AppSdpObserver() {
         override fun onCreateSuccess(p0: SessionDescription?) {
             Log.v("yama", "sdpObserver onCreateSuccess")
             super.onCreateSuccess(p0)
-            signalingClient.send(p0)
+            val obj = SendingData(sdp = p0?.description!!, uuid = uuid.toString())
+            //signalingClient.send(obj)
         }
     }
 
@@ -80,12 +84,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onCameraPermissionGranted() {
-        rtcClient = WebRtcCLient(application, object : AppPeerConnectionObserver() {
+        rtcClient = WebRtcClient(application, object : AppPeerConnectionObserver() {
             override fun onIceCandidate(p0: IceCandidate?) {
                 super.onIceCandidate(p0)
-                Log.v("yama", "onIceCandidate")
-                signalingClient.send(p0)
+                Log.v("yama", "onIceCandidate > " + p0.toString())
+                //signalingClient.send(p0)
                 rtcClient.addIceCandidate(p0)
+                if (p0 == null) {
+                    isCdateNull = true;
+                }
             }
             override fun onAddStream(p0: MediaStream?) {
                 super.onAddStream(p0)
@@ -98,13 +105,16 @@ class MainActivity : AppCompatActivity() {
         rtcClient.startLocalVideoCapture(localRenderer)
         signalingClient = SignalingClient(createSignalingClientListener())
         callBtn.setOnClickListener {
-            rtcClient.call(sdpObserver)
+            if (isWsOpen && isCdateNull) {
+                rtcClient.call(sdpObserver)
+            }
         }
     }
 
     private fun createSignalingClientListener(): SignalingClientListener = object : SignalingClientListener {
         override fun onConnectionEstablished() {
-            callBtn.isClickable = true
+            isWsOpen = true
+            //signalingClient.send(WebSocketAuth("consume@890", "0749637637"))
         }
         override fun onOfferReceived(description: SessionDescription) {
             Log.v("yama", "offer received")
@@ -123,11 +133,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun onCameraPermissionDenied() {
         Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
-    }
-
-    override fun onDestroy() {
-        signalingClient.destroy()
-        super.onDestroy()
     }
 
 }

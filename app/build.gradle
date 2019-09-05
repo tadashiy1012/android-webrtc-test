@@ -53,9 +53,5 @@ dependencies {
     implementation 'org.webrtc:google-webrtc:1.0.+'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.1.1'
     implementation 'com.google.code.gson:gson:2.8.5'
-    implementation 'io.ktor:ktor-client-core:1.2.3'
-    implementation 'io.ktor:ktor-client-cio:1.2.3'
-    implementation 'io.ktor:ktor-client-android:1.2.3'
-    implementation 'io.ktor:ktor-client-json:1.2.3'
-    implementation 'io.ktor:ktor-client-gson:1.2.3'
+    implementation "com.squareup.okhttp3:okhttp:4.1.1"
 }
