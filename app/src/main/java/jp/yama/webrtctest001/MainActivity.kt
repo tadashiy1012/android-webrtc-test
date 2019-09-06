@@ -9,8 +9,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.gson.Gson
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.*
 import org.webrtc.*
 import java.util.*
 
@@ -22,19 +22,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val uuid = UUID.randomUUID()
+    private val key = "default"
 
     private lateinit var rtcClient: WebRtcClient
     private lateinit var signalingClient: SignalingClient
 
+    private val gson = Gson()
+
     private var isWsOpen = false;
-    private var isCdateNull = false;
+    private var desc: SessionDescription? = null
 
     private val sdpObserver = object : AppSdpObserver() {
         override fun onCreateSuccess(p0: SessionDescription?) {
-            Log.v("yama", "sdpObserver onCreateSuccess")
             super.onCreateSuccess(p0)
-            val obj = SendingData(sdp = p0?.description!!, uuid = uuid.toString())
-            //signalingClient.send(obj)
+            Log.v("yama", "sdpObserver onCreateSuccess")
+            desc = p0
         }
     }
 
@@ -88,10 +90,19 @@ class MainActivity : AppCompatActivity() {
             override fun onIceCandidate(p0: IceCandidate?) {
                 super.onIceCandidate(p0)
                 Log.v("yama", "onIceCandidate > " + p0.toString())
-                //signalingClient.send(p0)
                 rtcClient.addIceCandidate(p0)
-                if (p0 == null) {
-                    isCdateNull = true;
+            }
+
+            override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
+                super.onIceGatheringChange(p0)
+                if (p0 == PeerConnection.IceGatheringState.COMPLETE) {
+                    signalingClient.send(mapOf(
+                        Pair("to", "default@890"),
+                        Pair("type", "consume"),
+                        Pair("uuid", uuid.toString()),
+                        Pair("key", key),
+                        Pair("sdp", desc?.description!!)
+                    ));
                 }
             }
             override fun onAddStream(p0: MediaStream?) {
@@ -105,8 +116,8 @@ class MainActivity : AppCompatActivity() {
         rtcClient.startLocalVideoCapture(localRenderer)
         signalingClient = SignalingClient(createSignalingClientListener())
         callBtn.setOnClickListener {
-            if (isWsOpen && isCdateNull) {
-                rtcClient.call(sdpObserver)
+            if (isWsOpen) {
+                rtcClient.offer(sdpObserver)
             }
         }
     }
@@ -114,7 +125,7 @@ class MainActivity : AppCompatActivity() {
     private fun createSignalingClientListener(): SignalingClientListener = object : SignalingClientListener {
         override fun onConnectionEstablished() {
             isWsOpen = true
-            //signalingClient.send(WebSocketAuth("consume@890", "0749637637"))
+            rtcClient.offer(sdpObserver)
         }
         override fun onOfferReceived(description: SessionDescription) {
             Log.v("yama", "offer received")

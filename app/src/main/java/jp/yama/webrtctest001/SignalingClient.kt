@@ -42,13 +42,18 @@ class SignalingClient(
             val wsListener = object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     Log.v("yama", "onOpen:${response.message}")
-                    val json = gson.toJson(mapOf(Pair("auth", USER_NAME), Pair("password", PASSWORD)))
-                    webSocket.send(json)
+                    val auth = gson.toJson(mapOf(Pair("auth", USER_NAME), Pair("password", PASSWORD)))
+                    webSocket.send(auth)
+                    listener.onConnectionEstablished()
                 }
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     Log.v("yama", "onMessage:${text}")
                     val json = gson.fromJson(text, JsonObject::class.java)
                     Log.v("yama", json.toString());
+                    if (json.has("type") && json.get("type").asString == "produce") {
+                        val answer = SessionDescription(SessionDescription.Type.ANSWER, json.get("sdp").asString)
+                        listener.onAnswerReceived(answer)
+                    }
                 }
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     Log.v("yama", response?.message ?: "no message")

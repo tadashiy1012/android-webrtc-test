@@ -48,7 +48,6 @@ class WebRtcClient(
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setOptions(PeerConnectionFactory.Options().apply {
-                disableEncryption = true
                 disableNetworkMonitor = true
             }).createPeerConnectionFactory()
     }
@@ -80,9 +79,10 @@ class WebRtcClient(
             peerConnection?.addTrack(it)
         }
         Log.v("yama", "peerConnection stream added!")
+        Log.v("yama", peerConnection.toString());
     }
 
-    private fun PeerConnection.call(sdpObserver: SdpObserver) {
+    private fun PeerConnection.offer(sdpObserver: SdpObserver) {
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
@@ -121,7 +121,7 @@ class WebRtcClient(
         }, constraints)
     }
 
-    fun call(sdpObserver: SdpObserver) = peerConnection?.call(sdpObserver)
+    fun offer(sdpObserver: SdpObserver) = peerConnection?.offer(sdpObserver)
 
     fun answer(sdpObserver: SdpObserver) = peerConnection?.answer(sdpObserver)
 
