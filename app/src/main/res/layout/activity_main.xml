@@ -12,26 +12,29 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent">
-        <org.webrtc.SurfaceViewRenderer android:layout_width="match_parent"
-                                        android:layout_height="240dp"
-                                        android:id="@+id/localRenderer"
-                                        android:layout_marginStart="8dp"
-                                        android:layout_marginEnd="8dp"
-        />
+            app:layout_constraintBottom_toBottomOf="parent"
+            >
+
+        <org.webrtc.SurfaceViewRenderer
+                android:id="@+id/localRenderer"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
+
         <Space
                 android:layout_width="match_parent"
-                android:layout_height="8dp"/>
-        <org.webrtc.SurfaceViewRenderer android:layout_width="match_parent"
-                                        android:layout_height="240dp"
-                                        android:id="@+id/remoteRenderer"
-                                        android:layout_marginStart="8dp"
-                                        android:layout_marginEnd="8dp"
-        />
-        <Button
-                android:text="call"
+                android:layout_height="0dp"
+                android:layout_weight="0.02" />
+
+        <org.webrtc.SurfaceViewRenderer
+                android:id="@+id/remoteRenderer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:id="@+id/callBtn" android:clickable="false"/>
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

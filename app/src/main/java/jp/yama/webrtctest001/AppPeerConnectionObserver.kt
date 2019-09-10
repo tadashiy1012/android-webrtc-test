@@ -4,7 +4,9 @@ import android.util.Log
 import org.webrtc.*
 
 open class AppPeerConnectionObserver: PeerConnection.Observer {
-    override fun onIceCandidate(p0: IceCandidate?) {}
+    override fun onIceCandidate(p0: IceCandidate?) {
+        Log.v("yama", "onIceCandidate:${p0}")
+    }
     override fun onDataChannel(p0: DataChannel?) {}
     override fun onIceConnectionReceivingChange(p0: Boolean) {
         Log.v("yama", "onIceConnectionReceivingChange:" + p0.toString())
@@ -23,6 +25,8 @@ open class AppPeerConnectionObserver: PeerConnection.Observer {
     override fun onRemoveStream(p0: MediaStream?) {}
     override fun onRenegotiationNeeded() {
         Log.v("yama", "onRenegotiationNeeded")}
-    override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {}
+    override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {
+        Log.v("yama", "onAddTrack:${p1}")
+    }
 }
 
