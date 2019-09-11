@@ -51,8 +51,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private val uuid = UUID.randomUUID()
     private val gson = Gson()
-    private val eglBase = EglBase.create()
 
+    private val eglBase = EglBase.create()
     private val iceServer = listOf(
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
     )
@@ -65,10 +65,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     private lateinit var ws: WebSocket
     private var dataChannel: DataChannel? = null
 
-    private var desc: SessionDescription? = null
     private var isOpen = false
-    private var timer: Timer? = null
-    private var timer2: Timer? = null
     private lateinit var data: MutableLiveData<List<Media>>
     private var chunk: ArrayList<ByteBuffer>? = null
 
@@ -89,17 +86,14 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private fun buildPeerConnection(): PeerConnection? = peerConnectionFactory.createPeerConnection(
         iceServer,
-        object: AppPeerConnectionObserver() {
-            override fun onIceCandidate(p0: IceCandidate?) {
-                super.onIceCandidate(p0)
-                peerConnection?.addIceCandidate(p0)
-            }
+        object: AppPeerConnectionObserver("pc") {
             override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
                 super.onIceGatheringChange(p0)
                 if (p0 == PeerConnection.IceGatheringState.COMPLETE) {
-                    timer = Timer()
-                    timer?.schedule(object: TimerTask() {
+                    val timer = Timer(false)
+                    timer.schedule(object: TimerTask() {
                         override fun run() {
+                            val desc = peerConnection?.localDescription
                             if (isOpen && desc != null) {
                                 Log.v("yama", "sending sdp")
                                 send(mapOf(
@@ -107,33 +101,11 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                                     Pair("type", "consume"),
                                     Pair("uuid", uuid.toString()),
                                     Pair("key", KEY),
-                                    Pair("sdp", desc?.description!!)
+                                    Pair("sdp", desc.description!!)
                                 ));
-                                timer?.cancel()
-                                timer = null;
+                                timer.cancel()
                             } else {
                                 Log.v("yama", "sdp send pending...")
-                            }
-                        }
-                    }, 0, 3000)
-                    timer2 = Timer()
-                    timer2?.schedule(object : TimerTask() {
-                        override fun run() {
-                            val dcdesc = dcPeerConnection?.localDescription
-                            if (isOpen && dcdesc != null) {
-                                Log.v("yama", "sending dc sdp")
-                                send(mapOf(
-                                    Pair("to", "default@890"),
-                                    Pair("type", "consume_dc"),
-                                    Pair("uuid", uuid.toString()),
-                                    Pair("key", KEY),
-                                    Pair("sdp", dcdesc?.description),
-                                    Pair("env", "chrome")
-                                ))
-                                timer2?.cancel()
-                                timer2 = null;
-                            } else {
-                                Log.v("yama", "dc sdp send pending...")
                             }
                         }
                     }, 0, 3000)
@@ -148,15 +120,31 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private fun buildDataChannelPeerConnection(): PeerConnection? = peerConnectionFactory.createPeerConnection(
         iceServer,
-        object: AppPeerConnectionObserver() {
-            override fun onRenegotiationNeeded() {
-                super.onRenegotiationNeeded()
-                Log.v("yama", "dc onRenegotiationNeeded")
-            }
-            override fun onIceCandidate(p0: IceCandidate?) {
-                super.onIceCandidate(p0)
-                Log.v("yama", "dc onIceCandidate")
-                dcPeerConnection?.addIceCandidate(p0)
+        object: AppPeerConnectionObserver("dc") {
+            override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
+                super.onIceGatheringChange(p0)
+                if (p0 == PeerConnection.IceGatheringState.COMPLETE) {
+                    val timer = Timer(false)
+                    timer.schedule(object : TimerTask() {
+                        override fun run() {
+                            val dcdesc = dcPeerConnection?.localDescription
+                            if (isOpen && dcdesc != null) {
+                                Log.v("yama", "sending dc sdp")
+                                send(mapOf(
+                                    Pair("to", "default@890"),
+                                    Pair("type", "consume_dc"),
+                                    Pair("uuid", uuid.toString()),
+                                    Pair("key", KEY),
+                                    Pair("sdp", dcdesc.description),
+                                    Pair("env", "chrome")
+                                ))
+                                timer.cancel()
+                            } else {
+                                Log.v("yama", "dc sdp send pending...")
+                            }
+                        }
+                    }, 0, 3000)
+                }
             }
         }
     )
@@ -253,37 +241,28 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
     }
 
-
     private fun makeOffer() {
-        peerConnection?.offer(object : SdpObserver {
-            override fun onSetFailure(p0: String?) {}
-            override fun onSetSuccess() {}
-            override fun onCreateFailure(p0: String?) {
-                Log.v("yama", "sdpObserver onCreateFail:${p0}")
-            }
-            override fun onCreateSuccess(p0: SessionDescription?) {
-                Log.v("yama", "sdpObserver onCreateSuccess")
-                desc = p0
-            }
-        })
-    }
-
-    private fun PeerConnection.offer(sdpObserver: SdpObserver) {
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
-        createOffer(object : SdpObserver by sdpObserver {
+        peerConnection?.createOffer(object : SdpObserver {
+            override fun onSetFailure(p0: String?) {}
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) {
+                Log.v("yama", "create offer fail:${p0}")
+            }
             override fun onCreateSuccess(p0: SessionDescription?) {
-                Log.v("yama", "create offer")
-                setLocalDescription(object : SdpObserver {
-                    override fun onSetFailure(p0: String?) {}
+                Log.v("yama", "create offer success")
+                peerConnection?.setLocalDescription(object : SdpObserver {
+                    override fun onSetFailure(p0: String?) {
+                        Log.v("yama", "set offer fail:${p0}")
+                    }
                     override fun onSetSuccess() {
                         Log.v("yama", "set my offer")
                     }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
                 }, p0)
-                sdpObserver.onCreateSuccess(p0)
             }
         }, constraints)
     }
@@ -308,21 +287,21 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         dcPeerConnection?.createOffer(object: SdpObserver {
             override fun onSetFailure(p0: String?) {}
             override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) {
+                Log.e("yama", "dc create offer fail:${p0}")
+            }
             override fun onCreateSuccess(p0: SessionDescription?) {
-                Log.v("yama", "dc offer create success")
+                Log.v("yama", "dc create offer success")
                 dcPeerConnection?.setLocalDescription(object: SdpObserver {
                     override fun onSetFailure(p0: String?) {
-                        Log.e("yama", "dc offer set fail:${p0}")
+                        Log.e("yama", "dc set offer fail:${p0}")
                     }
                     override fun onSetSuccess() {
-                        Log.v("yama", "dc offer set success")
+                        Log.v("yama", "dc set offer success")
                     }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
                 }, p0)
-            }
-            override fun onCreateFailure(p0: String?) {
-                Log.e("yama", "dc offer create fail:${p0}")
             }
         }, constraints)
     }
@@ -443,14 +422,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (timer != null) {
-            timer?.cancel()
-            timer = null
-        }
-        if (timer2 != null) {
-            timer2?.cancel()
-            timer = null
-        }
         peerConnection?.close()
         ws.close(1000, "bye")
         cancel()
