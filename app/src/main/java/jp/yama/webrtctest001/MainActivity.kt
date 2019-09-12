@@ -3,12 +3,18 @@ package jp.yama.webrtctest001
 import android.Manifest
 import android.app.AlertDialog
 import android.app.Application
+import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Rect
+import android.graphics.pdf.PdfDocument
+import android.graphics.pdf.PdfRenderer
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.widget.Button
 import android.widget.EditText
@@ -19,6 +25,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.common.io.Files
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.android.synthetic.main.activity_main.*
@@ -28,9 +35,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import okhttp3.*
 import org.webrtc.*
-import java.io.ByteArrayInputStream
-import java.io.InputStream
-import java.io.InputStreamReader
+import java.io.*
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.util.*
@@ -181,11 +186,30 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                         Log.v(TAG, String(type))
                         Log.v(TAG, joined.get(capacity - 100 - 1).toString())
                         Log.v(TAG, joined.last().toString())
-                        launch {
-                            val bitmap = BitmapFactory.decodeByteArray(joined, 0, joined.size)
-                            val ls = data.value?.toMutableList()
-                            ls?.add(0, Media("picture", null, bitmap))
-                            data.value = ls?.toList()
+                        if (String(type).indexOf("image", 0, false) != -1) {
+                            launch {
+                                val bitmap = BitmapFactory.decodeByteArray(joined, 0, joined.size)
+                                val ls = data.value?.toMutableList()
+                                ls?.add(0, Media("picture", null, bitmap))
+                                data.value = ls?.toList()
+                            }
+                        } else {
+                            val ctx: Context = this@MainActivity
+                            launch {
+                                val dir = ctx.cacheDir
+                                val file = File.createTempFile("pre", ".pdf", dir)
+                                file.writeBytes(joined)
+                                val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                                val renderer = PdfRenderer(pfd)
+                                val page = renderer.openPage(0)
+                                val width = 210
+                                val height = 297
+                                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                page.render(bitmap, Rect(0, 0, width, height), null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                val ls = data.value?.toMutableList()
+                                ls?.add(0, Media("picture", null, bitmap))
+                                data.value = ls?.toList()
+                            }
                         }
                     } else {
                         if (chunk == null) chunk = ArrayList()
