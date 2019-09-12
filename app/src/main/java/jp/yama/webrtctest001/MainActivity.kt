@@ -162,24 +162,27 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                     val buffer = p0.data
                     if (buffer[0] == byteArrayOf(0)[0]) {
                         val capacity = chunk?.map { e -> e.capacity() }?.reduce { acc, i -> acc + i }!!
-                        var joined = ByteArray(capacity)
-                        var id = ByteArray(36)
+                        var joined = ByteArray(capacity - 100)
                         var type = ByteArray(100 - 36)
                         chunk?.forEachIndexed { idx, e ->
                             if (idx == 0) {
-                                (0..35).forEach { i -> id.set(i, e.get(i)) }
                                 (36..99).forEach { i -> type.set(i - 36, e.get(i))}
-                                (100..(e.capacity() - 1)).forEach { i -> joined.set(i - 100, e.get(i))}
+                                (100..(e.capacity() - 1)).forEach { i ->
+                                    joined.set(i - 100, e.get(i))
+                                }
                             } else {
-                                (0..(e.capacity() - 1)).forEach { i -> joined.set(i, e.get(i)) }
+                                val lastIdx = chunk?.get(idx - 1)?.capacity()!! - 100
+                                (0..(e.capacity() - 1)).forEach { i ->
+                                    joined.set(i + lastIdx, e.get(i))
+                                }
                             }
                         }
                         chunk = null
-                        Log.v(TAG, String(id))
                         Log.v(TAG, String(type))
+                        Log.v(TAG, joined.get(capacity - 100 - 1).toString())
+                        Log.v(TAG, joined.last().toString())
                         launch {
-                            val stream = ByteArrayInputStream(joined)
-                            val bitmap = BitmapFactory.decodeStream(stream)
+                            val bitmap = BitmapFactory.decodeByteArray(joined, 0, joined.size)
                             val ls = data.value?.toMutableList()
                             ls?.add(0, Media("picture", null, bitmap))
                             data.value = ls?.toList()
