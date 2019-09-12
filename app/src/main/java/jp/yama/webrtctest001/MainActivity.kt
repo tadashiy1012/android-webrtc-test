@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlertDialog
 import android.app.Application
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
@@ -27,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import okhttp3.*
 import org.webrtc.*
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.ByteBuffer
@@ -37,16 +39,18 @@ import kotlin.collections.ArrayList
 class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     companion object {
+        private const val TAG = "yama"
         private const val CAMERA_PERMISSION_REQ_CODE = 1
         private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
         private const val HOST_ADDRESS = "cloud.achex.ca"
         private const val PORT_NUMBER = 443
         private const val USER_NAME = "consume@890"
         private const val PASSWORD = "0749637637"
+        private const val TO_USER_NAME = "default@890"
         private const val KEY = "default"
         private const val LOCAL_TRACK_ID = "local_track"
         private const val LOCAL_STREAM_ID = "local_track"
-        private const val DATA_CHANNEL_LABEL = "data_channel_1"
+        private const val DATA_CHANNEL_LABEL = "chat1"
     }
 
     private val uuid = UUID.randomUUID()
@@ -57,8 +61,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
     )
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
-    private val videoCapturer by lazy { getVideoCapturer(this.application) }
-    private val localVideoSrc by lazy { peerConnectionFactory.createVideoSource(false) }
     private val peerConnection by lazy { buildPeerConnection() }
     private val dcPeerConnection by lazy { buildDataChannelPeerConnection() }
 
@@ -95,9 +97,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                         override fun run() {
                             val desc = peerConnection?.localDescription
                             if (isOpen && desc != null) {
-                                Log.v("yama", "sending sdp")
+                                Log.v(TAG, "sending sdp")
                                 send(mapOf(
-                                    Pair("to", "default@890"),
+                                    Pair("to", TO_USER_NAME),
                                     Pair("type", "consume"),
                                     Pair("uuid", uuid.toString()),
                                     Pair("key", KEY),
@@ -105,7 +107,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                                 ));
                                 timer.cancel()
                             } else {
-                                Log.v("yama", "sdp send pending...")
+                                Log.v(TAG, "sdp send pending...")
                             }
                         }
                     }, 0, 3000)
@@ -129,9 +131,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                         override fun run() {
                             val dcdesc = dcPeerConnection?.localDescription
                             if (isOpen && dcdesc != null) {
-                                Log.v("yama", "sending dc sdp")
+                                Log.v(TAG, "sending dc sdp")
                                 send(mapOf(
-                                    Pair("to", "default@890"),
+                                    Pair("to", TO_USER_NAME),
                                     Pair("type", "consume_dc"),
                                     Pair("uuid", uuid.toString()),
                                     Pair("key", KEY),
@@ -140,7 +142,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                                 ))
                                 timer.cancel()
                             } else {
-                                Log.v("yama", "dc sdp send pending...")
+                                Log.v(TAG, "dc sdp send pending...")
                             }
                         }
                     }, 0, 3000)
@@ -151,19 +153,43 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private fun buildDataChannel(): DataChannel? = dcPeerConnection?.createDataChannel(
             DATA_CHANNEL_LABEL, DataChannel.Init()).apply {
-        Log.v("yama", "build data channel")
+        Log.v(TAG, "build data channel")
         this?.registerObserver(object: DataChannel.Observer {
             override fun onMessage(p0: DataChannel.Buffer?) {
-                Log.v("yama", "data channel on message")
+                Log.v(TAG, "data channel on message")
                 if (p0?.binary!!) {
-                    Log.v("yama", "message type binary")
+                    Log.v(TAG, "message type binary")
                     val buffer = p0.data
-                    Log.v("yama", buffer[0].toString())
                     if (buffer[0] == byteArrayOf(0)[0]) {
-                        Log.v("yama", "bingo!")
+                        val capacity = chunk?.map { e -> e.capacity() }?.reduce { acc, i -> acc + i }!!
+                        var joined = ByteArray(capacity)
+                        var id = ByteArray(36)
+                        var type = ByteArray(100 - 36)
+                        chunk?.forEachIndexed { idx, e ->
+                            if (idx == 0) {
+                                (0..35).forEach { i -> id.set(i, e.get(i)) }
+                                (36..99).forEach { i -> type.set(i - 36, e.get(i))}
+                                (100..(e.capacity() - 1)).forEach { i -> joined.set(i - 100, e.get(i))}
+                            } else {
+                                (0..(e.capacity() - 1)).forEach { i -> joined.set(i, e.get(i)) }
+                            }
+                        }
+                        chunk = null
+                        Log.v(TAG, String(id))
+                        Log.v(TAG, String(type))
+                        launch {
+                            val stream = ByteArrayInputStream(joined)
+                            val bitmap = BitmapFactory.decodeStream(stream)
+                            val ls = data.value?.toMutableList()
+                            ls?.add(0, Media("picture", null, bitmap))
+                            data.value = ls?.toList()
+                        }
+                    } else {
+                        if (chunk == null) chunk = ArrayList()
+                        chunk?.add(buffer)
                     }
                 } else {
-                    Log.v("yama", "message type string")
+                    Log.v(TAG, "message type string")
                     val buffer = p0.data
                     val byteAry = ByteArray(buffer?.remaining()!!)
                     buffer.get(byteAry)
@@ -178,7 +204,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             }
             override fun onBufferedAmountChange(p0: Long) {}
             override fun onStateChange() {
-                Log.v("yama","data channel state change")
+                Log.v(TAG,"data channel state change")
             }
         })
     }
@@ -249,16 +275,16 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             override fun onSetFailure(p0: String?) {}
             override fun onSetSuccess() {}
             override fun onCreateFailure(p0: String?) {
-                Log.v("yama", "create offer fail:${p0}")
+                Log.v(TAG, "create offer fail:${p0}")
             }
             override fun onCreateSuccess(p0: SessionDescription?) {
-                Log.v("yama", "create offer success")
+                Log.v(TAG, "create offer success")
                 peerConnection?.setLocalDescription(object : SdpObserver {
                     override fun onSetFailure(p0: String?) {
-                        Log.v("yama", "set offer fail:${p0}")
+                        Log.v(TAG, "set offer fail:${p0}")
                     }
                     override fun onSetSuccess() {
-                        Log.v("yama", "set my offer")
+                        Log.v(TAG, "set my offer")
                     }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
@@ -268,13 +294,13 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun onRemoteSessionReceived(sessionDesc: SessionDescription) {
-        Log.v("yama", sessionDesc.type.toString())
+        Log.v(TAG, sessionDesc.type.toString())
         peerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onSetFailure(p0: String?) {
-                Log.v("yama", "remote desc set fail! " + p0)
+                Log.v(TAG, "remote desc set fail! " + p0)
             }
             override fun onSetSuccess() {
-                Log.v("yama", "remote desc set success!")
+                Log.v(TAG, "remote desc set success!")
             }
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onCreateFailure(p0: String?) {}
@@ -288,16 +314,16 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             override fun onSetFailure(p0: String?) {}
             override fun onSetSuccess() {}
             override fun onCreateFailure(p0: String?) {
-                Log.e("yama", "dc create offer fail:${p0}")
+                Log.e(TAG, "dc create offer fail:${p0}")
             }
             override fun onCreateSuccess(p0: SessionDescription?) {
-                Log.v("yama", "dc create offer success")
+                Log.v(TAG, "dc create offer success")
                 dcPeerConnection?.setLocalDescription(object: SdpObserver {
                     override fun onSetFailure(p0: String?) {
-                        Log.e("yama", "dc set offer fail:${p0}")
+                        Log.e(TAG, "dc set offer fail:${p0}")
                     }
                     override fun onSetSuccess() {
-                        Log.v("yama", "dc set offer success")
+                        Log.v(TAG, "dc set offer success")
                     }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
@@ -307,13 +333,13 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun onDcRemoteSessionReceived(desc: SessionDescription) {
-        Log.v("yama", desc.type.toString())
+        Log.v(TAG, desc.type.toString())
         dcPeerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onSetFailure(p0: String?) {
-                Log.v("yama", "remote desc set fail! " + p0)
+                Log.v(TAG, "remote desc set fail! " + p0)
             }
             override fun onSetSuccess() {
-                Log.v("yama", "remote desc set success!")
+                Log.v(TAG, "remote desc set success!")
             }
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onCreateFailure(p0: String?) {}
@@ -327,7 +353,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun startLocalVideoCapture(localVideoOutput: SurfaceViewRenderer) {
+        val localVideoSrc = peerConnectionFactory.createVideoSource(false)
         val helper = SurfaceTextureHelper.create(Thread.currentThread().name, eglBase.eglBaseContext)
+        val videoCapturer = getVideoCapturer(this.application)
         (videoCapturer as VideoCapturer).initialize(helper, localVideoOutput.context, localVideoSrc.capturerObserver)
         videoCapturer.startCapture(320, 240, 30)
         val videoTrack = peerConnectionFactory.createVideoTrack(LOCAL_TRACK_ID, localVideoSrc)
@@ -346,7 +374,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             .build()
         val wsListener = object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.v("yama", "onOpen:${response.message}")
+                Log.v(TAG, "onOpen:${response.message}")
                 isOpen = true;
                 val auth = gson.toJson(mapOf(Pair("auth", USER_NAME), Pair("password", PASSWORD)))
                 webSocket.send(auth)
@@ -354,24 +382,24 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                 makeDcOffer()
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                Log.v("yama", "onMessage:${text}")
+                Log.v(TAG, "onMessage:${text}")
                 val json = gson.fromJson(text, JsonObject::class.java)
-                Log.v("yama", json.toString());
+                Log.v(TAG, json.toString());
                 if (json.has("type") && json.get("type").asString == "produce"
                         && json.has("destination") && json.get("destination").asString == uuid.toString()) {
-                    Log.v("yama", "answer received")
+                    Log.v(TAG, "answer received")
                     val answer = SessionDescription(SessionDescription.Type.ANSWER, json.get("sdp").asString)
                     onRemoteSessionReceived(answer)
                 } else if (json.has("type") && json.get("type").asString == "produce_dc"
                         && json.has("destination") && json.get("destination").asString == uuid.toString()) {
-                    Log.v("yama", "dc answer received")
+                    Log.v(TAG, "dc answer received")
                     val answer = SessionDescription(SessionDescription.Type.ANSWER, json.get("sdp").asString)
                     onDcRemoteSessionReceived(answer)
                 }
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.v("yama", response?.message ?: "no message")
-                Log.e("yama", "error!", t)
+                Log.v(TAG, response?.message ?: "no message")
+                Log.e(TAG, "error!", t)
             }
         }
         ws = client.newWebSocket(request, wsListener)
@@ -380,7 +408,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private fun send(data: Map<String, String>) {
         val json = gson.toJson(data);
-        Log.v("yama", "ws send:${json}")
+        Log.v(TAG, "ws send:${json}")
         ws.send(json)
     }
 
