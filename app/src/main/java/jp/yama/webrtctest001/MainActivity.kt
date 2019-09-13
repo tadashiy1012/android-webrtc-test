@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         private const val TAG = "yama"
         private const val CAMERA_PERMISSION_REQ_CODE = 1
         private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
+        private const val MIC_PERMISSION = Manifest.permission.RECORD_AUDIO
         private const val HOST_ADDRESS = "cloud.achex.ca"
         private const val PORT_NUMBER = 443
         private const val USER_NAME = "consume@890"
@@ -63,7 +64,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private val eglBase = EglBase.create()
     private val iceServer = listOf(
-        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+        PeerConnection.IceServer.builder("stun:stun4.l.google.com:19302").createIceServer()
     )
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
     private val peerConnection by lazy { buildPeerConnection() }
@@ -92,7 +94,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun buildPeerConnection(): PeerConnection? = peerConnectionFactory.createPeerConnection(
-        iceServer,
+        PeerConnection.RTCConfiguration(iceServer).apply {
+            bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
+            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
+        },
         object: AppPeerConnectionObserver("pc") {
             override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
                 super.onIceGatheringChange(p0)
@@ -126,7 +131,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     )
 
     private fun buildDataChannelPeerConnection(): PeerConnection? = peerConnectionFactory.createPeerConnection(
-        iceServer,
+        PeerConnection.RTCConfiguration(iceServer).apply {
+            bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
+            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
+        },
         object: AppPeerConnectionObserver("dc") {
             override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
                 super.onIceGatheringChange(p0)
@@ -245,7 +253,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun checkPermission() {
-        if (ContextCompat.checkSelfPermission(this, CAMERA_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, CAMERA_PERMISSION) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, MIC_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
             requestCameraPermission()
         } else {
             onCameraPermissionGranted()
@@ -253,17 +262,26 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun requestCameraPermission(dialogShown: Boolean = false) {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, CAMERA_PERMISSION) && !dialogShown) {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                CAMERA_PERMISSION
+            ) && !dialogShown
+        ) {
+            showPermissionRationaleDialog()
+        } else if (ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                MIC_PERMISSION
+            ) && !dialogShown) {
             showPermissionRationaleDialog()
         } else {
-            ActivityCompat.requestPermissions(this, arrayOf(CAMERA_PERMISSION), CAMERA_PERMISSION_REQ_CODE)
+            ActivityCompat.requestPermissions(this, arrayOf(CAMERA_PERMISSION, MIC_PERMISSION), CAMERA_PERMISSION_REQ_CODE)
         }
     }
 
     private fun showPermissionRationaleDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Camera Permission Required")
-            .setMessage("this app need the camera to function")
+            .setTitle("Permission Required")
+            .setMessage("This app need the camera and mic")
             .setPositiveButton("Grant") { dialog, _ ->
                 dialog.dismiss()
                 requestCameraPermission(true)
@@ -291,12 +309,13 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun onCameraPermissionDenied() {
-        Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Permission Denied", Toast.LENGTH_LONG).show()
     }
 
     private fun makeOffer() {
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
         }
         peerConnection?.createOffer(object : SdpObserver {
             override fun onSetFailure(p0: String?) {}
@@ -387,11 +406,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         videoCapturer.startCapture(320, 240, 30)
         val videoTrack = peerConnectionFactory.createVideoTrack(LOCAL_TRACK_ID, localVideoSrc)
         videoTrack.addSink(localVideoOutput)
+        val localAudioSrc = peerConnectionFactory.createAudioSource(MediaConstraints())
+        val audioTrack = peerConnectionFactory.createAudioTrack("audio1", localAudioSrc)
         val stream = peerConnectionFactory.createLocalMediaStream(LOCAL_STREAM_ID)
         stream.addTrack(videoTrack)
-        stream.videoTracks.forEach {
-            peerConnection?.addTrack(it)
-        }
+        stream.addTrack(audioTrack)
+        peerConnection?.addStream(stream)
     }
 
     private fun connect() {
@@ -478,6 +498,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     override fun onDestroy() {
         super.onDestroy()
         peerConnection?.close()
+        dataChannel?.close()
+        dcPeerConnection?.close()
         ws.close(1000, "bye")
         cancel()
     }
