@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     private val eglBase = EglBase.create()
     private val iceServer = listOf(
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
-        PeerConnection.IceServer.builder("stun:stun4.l.google.com:19302").createIceServer()
+        PeerConnection.IceServer.builder("stun:stun.services.mozilla.com:3478").createIceServer()
     )
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
     private val peerConnection by lazy { buildPeerConnection() }
@@ -77,10 +77,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     private var isOpen = false
     private lateinit var data: MutableLiveData<List<Media>>
     private var chunk: ArrayList<ByteBuffer>? = null
+    private var start: Long? = null
 
     private fun buildPeerConnectionFactory(): PeerConnectionFactory {
         val options = PeerConnectionFactory.InitializationOptions.builder(this)
-            .setEnableInternalTracer(true)
             .setFieldTrials("WebRTC-H264HighProfile/Enabled/")
             .createInitializationOptions()
         PeerConnectionFactory.initialize(options)
@@ -88,16 +88,11 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             .builder()
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
-            .setOptions(PeerConnectionFactory.Options().apply {
-                disableNetworkMonitor = true
-            }).createPeerConnectionFactory()
+            .setOptions(PeerConnectionFactory.Options()).createPeerConnectionFactory()
     }
 
     private fun buildPeerConnection(): PeerConnection? = peerConnectionFactory.createPeerConnection(
-        PeerConnection.RTCConfiguration(iceServer).apply {
-            bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
-            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
-        },
+        PeerConnection.RTCConfiguration(iceServer),
         object: AppPeerConnectionObserver("pc") {
             override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
                 super.onIceGatheringChange(p0)
@@ -121,6 +116,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                             }
                         }
                     }, 0, 3000)
+                    val end = System.currentTimeMillis()
+                    Log.v(TAG, "elapse:${end - start!!}")
                 }
             }
             override fun onAddStream(p0: MediaStream?) {
@@ -131,10 +128,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     )
 
     private fun buildDataChannelPeerConnection(): PeerConnection? = peerConnectionFactory.createPeerConnection(
-        PeerConnection.RTCConfiguration(iceServer).apply {
-            bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
-            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
-        },
+        PeerConnection.RTCConfiguration(iceServer),
         object: AppPeerConnectionObserver("dc") {
             override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
                 super.onIceGatheringChange(p0)
@@ -302,6 +296,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     private fun onCameraPermissionGranted() {
+        start = System.currentTimeMillis()
         initSurfaceView(remoteRenderer)
         initSurfaceView(localRenderer)
         startLocalVideoCapture(localRenderer)
